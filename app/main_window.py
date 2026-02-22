@@ -130,18 +130,18 @@ class PreviewTab(QWidget):
         export_layout.setSpacing(12)
         
         export_header = QLabel("Export Template")
-        export_header.setStyleSheet(f"font-size: 24px; font-weight: bold; color: {StyleTokens.PRIMARY};")
+        export_header.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {StyleTokens.PRIMARY};")
         export_layout.addWidget(export_header)
         
-        export_desc = QLabel("Select a part category to generate a canonical Blender template with the full mech rig.")
-        export_desc.setStyleSheet(f"color: {StyleTokens.TEXT_SECONDARY}; font-size: 12px;")
+        export_desc = QLabel("Export the current robot assembly into a Blender template with the full mech rig.")
+        export_desc.setStyleSheet(f"color: {StyleTokens.TEXT_SECONDARY}; font-size: 11px;")
         export_desc.setWordWrap(True)
         export_layout.addWidget(export_desc)
         
         self.export_btn = QPushButton("Generate Template")
         self.export_btn.setObjectName("primary_action")
-        self.export_btn.setMinimumHeight(40) # Larger, more prominent button
-        self.export_btn.setStyleSheet("font-size: 14px; font-weight: bold;")
+        self.export_btn.setMinimumHeight(40)
+        self.export_btn.setStyleSheet(f"background-color: {StyleTokens.SUCCESS}; color: white; border: none; font-size: 14px; font-weight: bold;")
         self.export_btn.clicked.connect(self.on_export_clicked)
         export_layout.addWidget(self.export_btn)
         
@@ -372,7 +372,7 @@ class MainWindow(QMainWindow):
     def init_tabs(self):
         self.viewport = ModularViewport()
         self.preview_tab = PreviewTab(self.viewport, self.template_service)
-        self.tabs.addTab(self.preview_tab, "📦 Preview")
+        self.tabs.addTab(self.preview_tab, "📦 Preview & Export")
 
         
         validate_tab = ValidateTab(self.validation_service)
