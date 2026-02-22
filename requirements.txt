@@ -1,0 +1,6 @@
+PySide6==6.10.2
+GitPython
+python-dotenv
+PyOpenGL
+PyOpenGL-accelerate
+numpy
