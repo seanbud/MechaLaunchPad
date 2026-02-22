@@ -148,7 +148,7 @@ class PreviewTab(QWidget):
         # Sidebar
         sidebar = QWidget()
         sidebar.setFixedWidth(250)
-        sidebar.setStyleSheet(f"background-color: {StyleTokens.BG_LEVEL_1}; border-right: 1px solid {StyleTokens.BORDER};")
+        sidebar.setStyleSheet(f"background-color: {StyleTokens.BG_LEVEL_2}; border-right: 1px solid {StyleTokens.BORDER};")
         side_layout = QVBoxLayout(sidebar)
         side_layout.setContentsMargins(20, 20, 20, 20)
         side_layout.setSpacing(15)
@@ -183,7 +183,14 @@ class PreviewTab(QWidget):
         view_container = QWidget()
         view_layout = QVBoxLayout(view_container)
         view_layout.setContentsMargins(0, 0, 0, 0)
-        view_layout.addWidget(self.viewport)
+        view_layout.setSpacing(0)
+        
+        controls = QLabel("🖱️ Left Click: Orbit  |  Middle Click: Pan  |  Scroll: Zoom")
+        controls.setAlignment(Qt.AlignCenter)
+        controls.setStyleSheet(f"background-color: {StyleTokens.BG_LEVEL_2}; border-bottom: 1px solid {StyleTokens.BORDER}; color: {StyleTokens.TEXT_SECONDARY}; padding: 8px; font-weight: bold;")
+        view_layout.addWidget(controls)
+        
+        view_layout.addWidget(self.viewport, 1)
         layout.addWidget(view_container, 1)
 
     def on_part_swapped(self, category, index):
@@ -201,16 +208,20 @@ class PreviewTab(QWidget):
         for cat, data in assembly.items():
             self.viewport.load_fbx_data(cat, data)
             
-    def add_custom_part(self, category, fbx_data):
+    def add_custom_part(self, category, fbx_data, filename="Custom"):
         self.custom_parts[category] = fbx_data
         combo = self.selectors.get(category)
         if combo:
             combo.setEnabled(True)
+            if combo.count() > 1:
+                combo.setItemText(1, filename)
+            else:
+                combo.addItem(filename)
             combo.setCurrentIndex(1) # Auto-switch to custom when validated
             self.on_part_swapped(category, 1)
 
 class ValidateTab(QWidget):
-    validation_success = Signal(str, object) # category, fbx_data
+    validation_success = Signal(str, object, str) # category, fbx_data, filename
     
     def __init__(self, service: ValidationService):
         super().__init__()
@@ -314,7 +325,8 @@ class ValidateTab(QWidget):
                 self.results_list.addItem(hint)
         
         if fbx_data:
-            self.validation_success.emit(category, fbx_data)
+            fname = os.path.basename(self.fbx_path)
+            self.validation_success.emit(category, fbx_data, fname)
 
 class TabPlaceholder(QWidget):
     def __init__(self, title, description):

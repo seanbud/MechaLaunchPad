@@ -15,9 +15,9 @@ class ModularViewport(QOpenGLWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.mesh_manager = MeshManager()
-        self.camera_rot = QPoint(20, 45) # Pitch, Yaw
-        self.camera_dist = 3.0 # Zoomed in for 1-unit tall robot
-        self.camera_pan = QPoint(0, 50) # Pan up slightly
+        self.camera_rot = QPoint(15, 25) # Pitch, Yaw (orbited closer to front)
+        self.camera_dist = 5.0 # Zoomed in
+        self.camera_pan = QPoint(0, -75) # Panned up slightly
         self.last_mouse_pos = QPoint()
         
         # Animation
@@ -61,44 +61,52 @@ class ModularViewport(QOpenGLWidget):
         glEnable(GL_LIGHTING)
         glEnable(GL_LIGHT0)
         glEnable(GL_COLOR_MATERIAL)
+        glEnable(GL_NORMALIZE) # Fixes scaling lighting artifacts
+        glShadeModel(GL_SMOOTH)
         
         # Simple directional light
-        glLightfv(GL_LIGHT0, GL_POSITION, [1, 1, 1, 0])
+        glLightfv(GL_LIGHT0, GL_POSITION, [1, 2, 1, 0])
         glLightfv(GL_LIGHT0, GL_DIFFUSE, [1, 1, 1, 1])
+        glLightfv(GL_LIGHT0, GL_AMBIENT, [0.3, 0.3, 0.3, 1])
 
     def resizeGL(self, w, h):
         glViewport(0, 0, w, h)
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
         aspect = w / h if h > 0 else 1
-        gluPerspective(45, aspect, 0.1, 100.0)
+        gluPerspective(45, aspect, 0.1, 200.0) # Increased far plane
         glMatrixMode(GL_MODELVIEW)
 
     def paintGL(self):
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glLoadIdentity()
         
-        # Camera Transformation
+        # 1. Camera Base Translation (Zoom)
         glTranslatef(0, 0, -self.camera_dist)
+        
+        # 2. Camera Panning (Applied in view space)
+        glTranslatef(self.camera_pan.x() * 0.01, self.camera_pan.y() * 0.01, 0)
+        
+        # 3. Camera Rotation (Orbit)
         glRotatef(self.camera_rot.x(), 1, 0, 0)
         glRotatef(self.camera_rot.y(), 0, 1, 0)
         
-        # Grid and Axes in "Modern Y-Up" space
+        # 4. Grid and Axes in "Modern Y-Up" space
         self.draw_grid()
         self.draw_axes()
         
-        # Compensate for Blender Z-Up -> OpenGL Y-Up
+        # 5. Compensate for Blender Z-Up -> OpenGL Y-Up
+        glPushMatrix() # Isolate robot transform from grid
         glRotatef(-90, 1, 0, 0)
         
-        # Apply the overall Armature world transform (handles FBX 100x scale)
+        # 6. Apply the overall Armature world transform (handles FBX 100x scale)
         if self.animation_data and "armature_world_matrix" in self.animation_data:
             mat = self.animation_data["armature_world_matrix"]
             glMultMatrixf(mat)
         
-        glTranslatef(self.camera_pan.x() * 0.01, self.camera_pan.y() * 0.01, 0)
-        
-        # Draw MeshManager parts
+        # 7. Draw MeshManager parts
         self.mesh_manager.draw_all()
+        glPopMatrix()
 
     def draw_grid(self, size=10, step=1):
         glDisable(GL_LIGHTING)

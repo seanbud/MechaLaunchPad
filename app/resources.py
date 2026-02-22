@@ -101,4 +101,30 @@ QStatusBar {{
     border-top: 1px solid {StyleTokens.BORDER};
     color: {StyleTokens.TEXT_SECONDARY};
 }}
+
+QComboBox {{
+    background-color: {StyleTokens.BG_LEVEL_3};
+    border: 1px solid {StyleTokens.BORDER};
+    border-radius: 6px;
+    padding: 6px 12px;
+    color: {StyleTokens.TEXT_MAIN};
+    font-family: '{StyleTokens.FONT_MAIN}', sans-serif;
+}}
+
+QComboBox:hover {{
+    border-color: {StyleTokens.TEXT_SECONDARY};
+}}
+
+QComboBox::drop-down {{
+    border: none;
+    width: 30px;
+}}
+
+QComboBox QAbstractItemView {{
+    background-color: {StyleTokens.BG_LEVEL_3};
+    border: 1px solid {StyleTokens.BORDER};
+    color: {StyleTokens.TEXT_MAIN};
+    selection-background-color: {StyleTokens.PRIMARY};
+}}
 """
+
