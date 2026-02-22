@@ -372,7 +372,7 @@ class MainWindow(QMainWindow):
     def init_tabs(self):
         self.viewport = ModularViewport()
         self.preview_tab = PreviewTab(self.viewport, self.template_service)
-        self.tabs.addTab(self.preview_tab, "📦 Preview & Export")
+        self.tabs.addTab(self.preview_tab, "📦 Preview && Export")
 
         
         validate_tab = ValidateTab(self.validation_service)
