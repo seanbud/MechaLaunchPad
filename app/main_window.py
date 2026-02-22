@@ -14,64 +14,8 @@ from app.validation_service import ValidationService
 from app.viewport import ModularViewport
 from validation.models import Severity, FBXData
 
-class ExportTab(QWidget):
-    def __init__(self, service: TemplateService):
-        super().__init__()
-        self.service = service
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(40, 40, 40, 40)
-        layout.setSpacing(20)
-        
-        # Header
-        header = QLabel("Export Authoring Template")
-        header.setStyleSheet(f"font-size: 24px; font-weight: bold; color: {StyleTokens.PRIMARY};")
-        layout.addWidget(header)
-        
-        desc = QLabel("Select a part category to generate a canonical Blender template with the full mech rig.")
-        desc.setStyleSheet(f"color: {StyleTokens.TEXT_SECONDARY};")
-        desc.setWordWrap(True)
-        layout.addWidget(desc)
-        
-        # Selection
-        form_layout = QHBoxLayout()
-        form_layout.addWidget(QLabel("Part Category:"))
-        
-        self.part_selector = QComboBox()
-        self.part_selector.addItems(["LeftArm", "RightArm", "Torso", "Head", "Legs"])
-        self.part_selector.setFixedWidth(200)
-        form_layout.addWidget(self.part_selector)
-        form_layout.addStretch()
-        layout.addLayout(form_layout)
-        
-        # Action
-        self.export_btn = QPushButton("Generate Template")
-        self.export_btn.setObjectName("primary_action")
-        self.export_btn.setFixedWidth(200)
-        self.export_btn.clicked.connect(self.on_export_clicked)
-        layout.addWidget(self.export_btn)
-        
-        layout.addStretch()
-
-    def on_export_clicked(self):
-        part = self.part_selector.currentText()
-        dest_dir = QFileDialog.getExistingDirectory(self, "Select Export Directory")
-        
-        if not dest_dir:
-            return
-            
-        self.export_btn.setEnabled(False)
-        self.export_btn.setText("Generating...")
-        
-        # For MVP, we'll run synchronously (could block UI, but Blender is fast)
-        path, error = self.service.generate_template(part, dest_dir)
-        
-        self.export_btn.setEnabled(True)
-        self.export_btn.setText("Generate Template")
-        
-        if path:
-            QMessageBox.information(self, "Success", f"Template generated successfully:\n{path}")
-        else:
-            QMessageBox.critical(self, "Error", f"Failed to generate template:\n{error}")
+# The ExportTab class has been removed as per user request. 
+# Its functionality is now integrated into the PreviewTab.
 
 class ValidationWorker(QThread):
     finished = Signal(list, object, str) # results, fbx_data, error
@@ -135,9 +79,10 @@ class RobotAssemblyWorker(QThread):
             self.finished.emit({}, f"Error processing base robot: {e}")
 
 class PreviewTab(QWidget):
-    def __init__(self, viewport: ModularViewport):
+    def __init__(self, viewport: ModularViewport, template_service: TemplateService):
         super().__init__()
         self.viewport = viewport
+        self.template_service = template_service
         self.custom_parts = {} # category -> fbx_data
         self.default_parts = {} # category -> fbx_data
         
@@ -177,6 +122,31 @@ class PreviewTab(QWidget):
             side_layout.addWidget(cat_group)
             
         side_layout.addStretch()
+        
+        # Export Module at the bottom of sidebar (Refined)
+        export_group = QWidget()
+        export_layout = QVBoxLayout(export_group)
+        export_layout.setContentsMargins(0, 20, 0, 0)
+        export_layout.setSpacing(12)
+        
+        export_header = QLabel("Export Template")
+        export_header.setStyleSheet(f"font-size: 24px; font-weight: bold; color: {StyleTokens.PRIMARY};")
+        export_layout.addWidget(export_header)
+        
+        export_desc = QLabel("Select a part category to generate a canonical Blender template with the full mech rig.")
+        export_desc.setStyleSheet(f"color: {StyleTokens.TEXT_SECONDARY}; font-size: 12px;")
+        export_desc.setWordWrap(True)
+        export_layout.addWidget(export_desc)
+        
+        self.export_btn = QPushButton("Generate Template")
+        self.export_btn.setObjectName("primary_action")
+        self.export_btn.setMinimumHeight(40) # Larger, more prominent button
+        self.export_btn.setStyleSheet("font-size: 14px; font-weight: bold;")
+        self.export_btn.clicked.connect(self.on_export_clicked)
+        export_layout.addWidget(self.export_btn)
+        
+        side_layout.addWidget(export_group)
+        
         layout.addWidget(sidebar)
         
         # Main Viewport Wrapper (to allow overlay or toolbar)
@@ -192,6 +162,27 @@ class PreviewTab(QWidget):
         
         view_layout.addWidget(self.viewport, 1)
         layout.addWidget(view_container, 1)
+
+    def on_export_clicked(self):
+        dest_dir = QFileDialog.getExistingDirectory(self, "Select Export Directory")
+        if not dest_dir:
+            return
+            
+        self.export_btn.setEnabled(False)
+        self.export_btn.setText("Generating...")
+        
+        # Export the whole rig template
+        # Passing empty string to trigger full rig export setup (if script supports it)
+        # Or defaulting to a core part like Torso or "All" depending on what the script needs
+        path, error = self.template_service.generate_template("ALL", dest_dir)
+        
+        self.export_btn.setEnabled(True)
+        self.export_btn.setText("Generate Template")
+        
+        if path:
+            QMessageBox.information(self, "Success", f"Template generated successfully:\n{path}")
+        else:
+            QMessageBox.critical(self, "Error", f"Failed to generate template:\n{error}")
 
     def on_part_swapped(self, category, index):
         """Swaps between default and custom mesh for a limb."""
@@ -379,14 +370,13 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("Ready — Connected to GitLab")
 
     def init_tabs(self):
-        self.tabs.addTab(ExportTab(self.template_service), "📦 Export")
+        self.viewport = ModularViewport()
+        self.preview_tab = PreviewTab(self.viewport, self.template_service)
+        self.tabs.addTab(self.preview_tab, "📦 Preview")
+
         
         validate_tab = ValidateTab(self.validation_service)
         self.tabs.addTab(validate_tab, "✅ Validate")
-        
-        self.viewport = ModularViewport()
-        self.preview_tab = PreviewTab(self.viewport)
-        self.tabs.addTab(self.preview_tab, "👁️ Preview")
         
         # Wire validation to preview
         validate_tab.validation_success.connect(self.preview_tab.add_custom_part)
