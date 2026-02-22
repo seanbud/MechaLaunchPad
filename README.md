@@ -1,8 +1,10 @@
 # MechaLaunchPad
 
-MechaLaunchPad is a local PySide6 desktop tool that demonstrates an **end-to-end modular content pipeline**. It allows artists to author mech parts in Blender against a canonical template rig, validate them locally, preview those parts interactively on a 3D animated robot, and then publish them to a CI/CD pipeline.
+MechaLaunchPad is a local PySide desktop tool that demonstrates an **end-to-end modular content pipeline**. It allows artists to author mech parts in Blender against a canonical template rig, validate them locally, preview those parts interactively on a 3D animated robot, and then publish them to a CI/CD pipeline.
 
-![App Screenshot Placeholder](docs/app-icon.png)
+<img width="256" height="256" alt="app-icon" src="https://github.com/user-attachments/assets/bba14f66-430f-49e2-9cf5-a4aff4075853" />
+
+<img width="333" height="400" alt="image" src="https://github.com/user-attachments/assets/7fd72ee7-0442-4328-8ade-131037fa3f30" />
 
 ## Architecture Split
 
@@ -13,13 +15,9 @@ To keep the pipeline clean and flexible, the architecture is split into two repo
 
 ## Features (MVP Phase 1 Complete)
 
-*   **Template Export**: Export a clean, versioned `BasicTemplate.blend` rig directly from the app to ensure your custom parts align perfectly.
-*   **Local Validation**: Headless Blender processes run pre-flight checks on your authored FBX files, validating naming conventions, bone parenting hierarchies, and triangle counts against a defined `part_registry.json`.
-*   **Interactive 3D Preview**: A custom-built PySide6 `QOpenGLWidget` allows you to assemble and preview your validated parts in real-time. It features:
-    *   Interactive camera controls (Orbit, Pan, Zoom).
-    *   Accurate coordinate space mapping (Blender Z-up to OpenGL Y-up).
-    *   Real-time playback of the canonical Idle animation (30 FPS).
-    *   Limb-swapping UI to toggle between default robot parts and your custom meshes.
+*   **Template Export**
+*   **Local Validation**: Headless Blender processes run local checks on your FBX files, validating naming conventions, bone parenting hierarchies, and triangle counts against a defined `part_registry.json`.
+*   **Interactive 3D Preview**: A custom-built PySide `QOpenGLWidget` allows you to preview validated parts.
 
 ## Setup & Running Locally
 
@@ -34,6 +32,13 @@ To keep the pipeline clean and flexible, the architecture is split into two repo
     ```bash
     .\run_app.bat
     ```
+
+## Video Demo
+
+
+https://github.com/user-attachments/assets/3fefc814-4727-48d8-a273-ccfca68c819d
+
+
 
 ## Development State
 
