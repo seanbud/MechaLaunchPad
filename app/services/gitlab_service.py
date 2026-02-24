@@ -90,32 +90,55 @@ class GitLabService(QObject):
 
     def publish_asset(self, category, fbx_data, fbx_filepath, commit_message):
         """
-        Creates a submission branch, copies the asset, and pushes it.
+        Creates a submission branch from main, copies the asset, and pushes it.
         Returns the branch name created.
         """
         repo = self.ensure_repo()
         
-        # Determine next version number based on existing directories
-        # Expected structure: parts/<Category>/<version>/
+        # Fix the user signature to the application rather than the local desktop user
+        with repo.config_writer() as config:
+            config.set_value("user", "name", "MechaArtist App")
+            config.set_value("user", "email", "pipeline@mechalaunchpad.local")
+        
+        # Ensure we are currently on main so we branch from the latest state (with CI files)
+        if "main" in repo.heads:
+            repo.heads.main.checkout()
+
+        # Find highest version number by checking all remote and local branches
+        highest_v = 0
+        prefix = f"submit/{category}/v"
+        
+        for ref in repo.remotes.origin.refs:
+            if ref.name.startswith(f"origin/{prefix}"):
+                num_str = ref.name.split(f"origin/{prefix}")[-1]
+                if num_str.isdigit():
+                    highest_v = max(highest_v, int(num_str))
+                    
+        for head in repo.heads:
+            if head.name.startswith(prefix):
+                num_str = head.name.split(prefix)[-1]
+                if num_str.isdigit():
+                    highest_v = max(highest_v, int(num_str))
+
+        # Also check local directories just in case they were merged but branches deleted
         parts_dir = os.path.join(self.local_repo_path, "parts", category)
         os.makedirs(parts_dir, exist_ok=True)
-        
         existing_versions = [d for d in os.listdir(parts_dir) if os.path.isdir(os.path.join(parts_dir, d)) and d.startswith("v")]
-        next_ver_num = 1
         if existing_versions:
-            # Parse 'v001', 'v002' etc.
             nums = [int(v[1:]) for v in existing_versions if v[1:].isdigit()]
             if nums:
-                next_ver_num = max(nums) + 1
-                
+                highest_v = max(highest_v, max(nums))
+
+        next_ver_num = highest_v + 1
         version = f"v{next_ver_num:03d}"
         branch_name = f"submit/{category}/{version}"
         
-        # Create and checkout submit branch
+        # Delete local branch if it somehow exists to strictly prevent zombie history
         if branch_name in repo.heads:
-            repo.heads[branch_name].checkout()
-        else:
-            repo.create_head(branch_name).checkout()
+            repo.delete_head(repo.heads[branch_name], force=True)
+
+        # Create fresh branch FROM MAIN
+        repo.create_head(branch_name, repo.heads.main).checkout()
             
         # Create target directory
         target_dir = os.path.join(parts_dir, version)
@@ -136,8 +159,7 @@ class GitLabService(QObject):
         origin.push(refspec=f"{branch_name}:{branch_name}")
         
         # Restore back to main
-        if "main" in repo.heads:
-            repo.heads.main.checkout()
+        repo.heads.main.checkout()
             
         return branch_name
 
