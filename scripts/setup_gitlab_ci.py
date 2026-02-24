@@ -172,24 +172,19 @@ auto_merge:
       fi
       
       if [ -n "$MR_IID" ]; then
-        echo "MR !${MR_IID} created/found. Merging..."
+        echo "MR !${MR_IID} created/found. Setting to auto-merge when pipeline succeeds..."
         
-        # Accept (merge) the MR immediately
+        # Set MR to auto-merge when pipeline completes
+        # Cannot merge immediately because THIS job is part of the running pipeline
         MERGE_RESULT=$(curl -s --request PUT \
           --header "PRIVATE-TOKEN: ${GITLAB_PAT}" \
           "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests/${MR_IID}/merge" \
-          --data "merge_when_pipeline_succeeds=false" \
+          --data "merge_when_pipeline_succeeds=true" \
           --data "should_remove_source_branch=true")
         
-        MERGE_STATE=$(echo "$MERGE_RESULT" | jq -r '.state // empty')
-        echo "Merge result state: $MERGE_STATE"
-        
-        if [ "$MERGE_STATE" = "merged" ]; then
-          echo "MR !${MR_IID} merged to main successfully."
-        else
-          echo "Merge response: $MERGE_RESULT"
-          echo "MR may need manual merge or pipeline completion first."
-        fi
+        MERGE_STATE=$(echo "$MERGE_RESULT" | jq -r '.state // .message // empty')
+        echo "Auto-merge result: $MERGE_STATE"
+        echo "MR !${MR_IID} will auto-merge to main when this pipeline finishes."
       else
         echo "Could not create or find MR for $BRANCH"
         exit 1
