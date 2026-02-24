@@ -126,15 +126,16 @@ class CIJobCard(QFrame):
         if self.web_url:
             self.link_btn.setEnabled(True)
             
-        icon = "❓"
+        icon = "?"
+        color = StyleTokens.TEXT_SECONDARY  # Default for unknown statuses
         if status in ("running", "pending"):
-            icon = "🔄" if status == "running" else "⏳"
+            icon = ">" if status == "running" else "..."
             color = StyleTokens.WARNING
         elif status == "success":
-            icon = "✅"
+            icon = "OK"
             color = StyleTokens.SUCCESS
         elif status in ("failed", "canceled"):
-            icon = "❌" if status == "failed" else "🚫"
+            icon = "X" if status == "failed" else "--"
             color = StyleTokens.ERROR
 
         self.status_icon.setText(icon)
