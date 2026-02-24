@@ -7,7 +7,7 @@ from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtCore import Qt, QPoint, QTimer
 from OpenGL.GL import *
 from OpenGL.GLU import *
-from app.mesh_manager import MeshManager
+from app.core.mesh_manager import MeshManager
 
 class ModularViewport(QOpenGLWidget):
     """Interactive 3D viewport for previewing mech parts."""

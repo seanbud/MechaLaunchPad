@@ -1,6 +1,6 @@
 import sys
 from PySide6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QLabel
-from app.viewport import ModularViewport
+from app.ui.viewport import ModularViewport
 
 def main():
     app = QApplication(sys.argv)

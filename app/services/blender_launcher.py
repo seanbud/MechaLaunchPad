@@ -38,6 +38,12 @@ class BlenderLauncher:
         if blend_file:
             cmd.extend([blend_file])
             
+        if not os.path.exists(script_path):
+            # Try to resolve relative to service location (which is now in app/services)
+            # base_dir is currently app/services, we need to go up two levels to reach project root
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            script_path = os.path.join(base_dir, "scripts", "blender_extract_validate.py")
+            
         cmd.extend(["--python", script_path])
         
         if extra_args:

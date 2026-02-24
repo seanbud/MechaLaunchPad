@@ -1,5 +1,5 @@
 import os
-from app.blender_launcher import BlenderLauncher
+from app.services.blender_launcher import BlenderLauncher
 
 class TemplateService:
     """Service for managing authoring templates."""
@@ -7,8 +7,9 @@ class TemplateService:
     def __init__(self, launcher: BlenderLauncher):
         self.launcher = launcher
         self.base_dir = os.path.dirname(os.path.dirname(__file__))
-        self.template_blend = os.path.join(self.base_dir, "BasicTemplate.blend")
-        self.export_script = os.path.join(self.base_dir, "scripts", "blender_export_template.py")
+        project_root = os.path.dirname(self.base_dir)
+        self.template_blend = os.path.join(project_root, "data", "BasicTemplate.blend")
+        self.export_script = os.path.join(project_root, "scripts", "blender_export_template.py")
 
     def generate_template(self, part_category, output_dir):
         """Generates an FBX template for the given part category."""

@@ -1,7 +1,7 @@
 import sys
 import os
 from PySide6.QtWidgets import QApplication
-from app.main_window import MainWindow
+from app.ui.main_window import MainWindow
 
 def main():
     # Set environment variables for high DPI

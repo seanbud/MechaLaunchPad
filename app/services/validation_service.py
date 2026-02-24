@@ -1,5 +1,5 @@
 import json
-from app.blender_launcher import BlenderLauncher
+from app.services.blender_launcher import BlenderLauncher
 from validation import ValidationRunner
 from validation.models import FBXData, Severity
 import os

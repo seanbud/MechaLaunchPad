@@ -1,7 +1,7 @@
 import sys
 import os
-from app.blender_launcher import BlenderLauncher
-from app.template_service import TemplateService
+from app.services.blender_launcher import BlenderLauncher
+from app.services.template_service import TemplateService
 
 def test_export(part_category):
     launcher = BlenderLauncher()

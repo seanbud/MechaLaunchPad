@@ -87,7 +87,7 @@ QLabel {{
     font-family: '{StyleTokens.FONT_MAIN}', sans-serif;
 }}
 
-QPlainTextEdit {{
+QPlainTextEdit, QTextEdit {{
     background-color: {StyleTokens.BG_LEVEL_1};
     border: 1px solid {StyleTokens.BORDER};
     border-radius: 6px;
@@ -125,6 +125,39 @@ QComboBox QAbstractItemView {{
     border: 1px solid {StyleTokens.BORDER};
     color: {StyleTokens.TEXT_MAIN};
     selection-background-color: {StyleTokens.PRIMARY};
+    padding: 4px;
+}}
+
+QListWidget {{
+    background-color: {StyleTokens.BG_LEVEL_1};
+    border: 1px solid {StyleTokens.BORDER};
+    color: {StyleTokens.TEXT_MAIN};
+    border-radius: 6px;
+}}
+
+QListWidget::item {{
+    padding: 12px;
+    border-bottom: 1px solid {StyleTokens.BORDER};
+}}
+
+QListWidget::item:selected {{
+    background-color: {StyleTokens.PRIMARY};
+    color: {StyleTokens.TEXT_WHITE};
+    border-radius: 4px;
+}}
+
+QProgressBar {{
+    border: 1px solid {StyleTokens.BORDER};
+    border-radius: 6px;
+    background-color: {StyleTokens.BG_LEVEL_1};
+    text-align: center;
+    color: {StyleTokens.TEXT_WHITE};
+    font-weight: bold;
+}}
+
+QProgressBar::chunk {{
+    background-color: {StyleTokens.PRIMARY};
+    border-radius: 5px;
 }}
 """
 

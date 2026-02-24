@@ -1,7 +1,7 @@
 import sys
 import os
-from app.blender_launcher import BlenderLauncher
-from app.validation_service import ValidationService
+from app.services.blender_launcher import BlenderLauncher
+from app.services.validation_service import ValidationService
 
 def test_validation(fbx_path, category="LeftArm"):
     launcher = BlenderLauncher()

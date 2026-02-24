@@ -7,11 +7,11 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QColor
 from PySide6.QtCore import Qt, QThread, Signal
-from app.resources import QSS_STYLE, StyleTokens
-from app.blender_launcher import BlenderLauncher
-from app.template_service import TemplateService
-from app.validation_service import ValidationService
-from app.viewport import ModularViewport
+from app.core.resources import QSS_STYLE, StyleTokens
+from app.services.blender_launcher import BlenderLauncher
+from app.services.template_service import TemplateService
+from app.services.validation_service import ValidationService
+from app.ui.viewport import ModularViewport
 from validation.models import Severity, FBXData
 
 # The ExportTab class has been removed as per user request. 
@@ -199,7 +199,7 @@ class PreviewTab(QWidget):
         for cat, data in assembly.items():
             self.viewport.load_fbx_data(cat, data)
             
-    def add_custom_part(self, category, fbx_data, filename="Custom"):
+    def add_custom_part(self, category, fbx_data, filename="Custom", filepath=None):
         self.custom_parts[category] = fbx_data
         combo = self.selectors.get(category)
         if combo:
@@ -212,7 +212,7 @@ class PreviewTab(QWidget):
             self.on_part_swapped(category, 1)
 
 class ValidateTab(QWidget):
-    validation_success = Signal(str, object, str) # category, fbx_data, filename
+    validation_success = Signal(str, object, str, str) # category, fbx_data, filename, filepath
     
     def __init__(self, service: ValidationService):
         super().__init__()
@@ -315,9 +315,9 @@ class ValidateTab(QWidget):
                 hint.setForeground(QColor(StyleTokens.TEXT_SECONDARY))
                 self.results_list.addItem(hint)
         
-        if fbx_data:
+        if fbx_data and all_passed:
             fname = os.path.basename(self.fbx_path)
-            self.validation_success.emit(category, fbx_data, fname)
+            self.validation_success.emit(category, fbx_data, fname, self.fbx_path)
 
 class TabPlaceholder(QWidget):
     def __init__(self, title, description):
@@ -339,6 +339,12 @@ class TabPlaceholder(QWidget):
         btn.setFixedWidth(200)
         layout.addWidget(btn)
 
+from app.ui.publish_tab import PublishTab
+from app.ui.ci_tab import CITab
+from app.services.gitlab_service import GitLabService
+
+from app.core.state_manager import StateManager
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -350,6 +356,8 @@ class MainWindow(QMainWindow):
             self.launcher = BlenderLauncher()
             self.template_service = TemplateService(self.launcher)
             self.validation_service = ValidationService(self.launcher)
+            self.gitlab_service = GitLabService() # Loads from env if available
+            self.state_manager = StateManager()
         except Exception as e:
             QMessageBox.critical(self, "Tools Missing", f"Could not initialize MechaBridge:\n{e}")
             import sys
@@ -367,7 +375,10 @@ class MainWindow(QMainWindow):
         
         # Status Bar
         self.setStatusBar(QStatusBar())
-        self.statusBar().showMessage("Ready — Connected to GitLab")
+        if self.gitlab_service.repo_url and self.gitlab_service.token:
+            self.statusBar().showMessage("Ready — Connected to GitLab API")
+        else:
+            self.statusBar().showMessage("Ready — GitLab credentials missing (.env)")
 
     def init_tabs(self):
         self.viewport = ModularViewport()
@@ -381,14 +392,60 @@ class MainWindow(QMainWindow):
         # Wire validation to preview
         validate_tab.validation_success.connect(self.preview_tab.add_custom_part)
         
+        # New Feature Tabs
+        self.publish_tab = PublishTab(self.gitlab_service)
+        self.ci_tab = CITab(self.gitlab_service)
+        
+        self.tabs.addTab(self.publish_tab, "🚀 Publish")
+        self.tabs.addTab(self.ci_tab, "📊 CI Status")
+        
+        # Wire Validation Tab to Publish Tab
+        validate_tab.validation_success.connect(self.publish_tab.on_validation_success)
+        
+        # Wire validation to state manager
+        validate_tab.validation_success.connect(
+            lambda cat, fbx, fn, fp: self.state_manager.add_validated_part(cat, fn, fp, fbx)
+        )
+        
+        # Wire Publish Tab to state manager and CI tab
+        self.publish_tab.submission_started.connect(self.ci_tab.track_branch)
+        self.publish_tab.submission_started.connect(self.state_manager.add_tracked_ci)
+        self.publish_tab.part_published.connect(self.state_manager.remove_validated_part)
+        
+        # Load persistent state into tabs
+        validated_state = self.state_manager.state.get("validated_parts", [])
+        self.publish_tab.load_state(validated_state)
+        
+        # Also re-hydrate the Preview/Export tab dropdowns with validated parts
+        from validation.models import FBXData
+        for part in validated_state:
+            fbx_dict = part.get("fbx_data")
+            fbx_data = None
+            if fbx_dict:
+                fbx_data = FBXData(
+                    filename=fbx_dict.get("filename", ""),
+                    tris=fbx_dict.get("tris", 0),
+                    meshes=fbx_dict.get("meshes", []),
+                    armature_name=fbx_dict.get("armature_name", ""),
+                    bones=fbx_dict.get("bones", [])
+                )
+            # This automatically populates the dropdown list and enables it
+            self.preview_tab.add_custom_part(
+                category=part.get("category"),
+                fbx_data=fbx_data,
+                filename=part.get("filename"),
+                filepath=part.get("filepath")
+            )
+            
+        all_ci = self.state_manager.get_all_tracked_ci()
+        for ci in all_ci:
+            self.ci_tab.track_branch(ci["category"], ci["branch_name"])
+        
         # Start background load of base robot
         self.load_base_robot()
-        
-        self.tabs.addTab(TabPlaceholder("Publish", "Commit and push validated assets to GitLab."), "🚀 Publish")
-        self.tabs.addTab(TabPlaceholder("CI Status", "Monitor GitLab pipeline status and logs."), "📊 CI Status")
 
     def load_base_robot(self):
-        base_path = os.path.join(os.getcwd(), "Basic_Model.fbx")
+        base_path = os.path.join(os.getcwd(), "data", "Basic_Model.fbx")
         if not os.path.exists(base_path):
             self.statusBar().showMessage("Warning: Basic_Model.fbx not found.")
             return
@@ -404,7 +461,12 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Load Error", error)
         else:
             self.preview_tab.set_default_assembly(assembly)
-            self.statusBar().showMessage("Robot assembly complete.")
+            
+            # Preserve GitLab status
+            if self.gitlab_service.repo_url and self.gitlab_service.token:
+                self.statusBar().showMessage("Robot assembly complete. | Ready — Connected to GitLab API")
+            else:
+                self.statusBar().showMessage("Robot assembly complete. | Ready — GitLab credentials missing (.env)")
 
     def on_validation_success(self, category, fbx_data):
         """Deprecated: Now handled by preview_tab.add_custom_part"""
