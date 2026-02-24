@@ -23,6 +23,10 @@ class GitLabService(QObject):
         self.token = token or os.getenv("GITLAB_PAT")
         self.project_id = project_id or os.getenv("GITLAB_PROJECT_ID")
         
+        # Git Identity Configuration
+        self.author_name = os.getenv("GIT_AUTHOR_NAME", "MechaLaunch Artist")
+        self.author_email = os.getenv("GIT_AUTHOR_EMAIL", "pipeline@mechalaunchpad.local")
+        
         # Determine local checkout path (e.g. ~/.mechalaunchpad/mech-assets)
         app_data_dir = os.path.join(os.path.expanduser("~"), ".mechalaunchpad")
         os.makedirs(app_data_dir, exist_ok=True)
@@ -97,8 +101,8 @@ class GitLabService(QObject):
         
         # Fix the user signature to the application rather than the local desktop user
         with repo.config_writer() as config:
-            config.set_value("user", "name", "MechaLaunch Artist")
-            config.set_value("user", "email", "pipeline@mechalaunchpad.local")
+            config.set_value("user", "name", self.author_name)
+            config.set_value("user", "email", self.author_email)
         
         # Ensure we are currently on main so we branch from the latest state (with CI files)
         if "main" in repo.heads:
