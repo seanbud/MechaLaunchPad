@@ -671,9 +671,10 @@ class MainWindow(QMainWindow):
                 filepath=part.get("filepath")
             )
             
-        all_ci = self.state_manager.get_all_tracked_ci()
-        for ci in all_ci:
-            self.ci_tab.track_branch(ci["category"], ci["branch_name"])
+        # Clear stale CI tracking from previous sessions
+        # Pipelines are only useful to track during the session they were published
+        self.state_manager.state["ci_tracking"] = []
+        self.state_manager.save_state()
         
         # Start background load of base robot
         self.load_base_robot()
