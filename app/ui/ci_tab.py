@@ -217,6 +217,7 @@ class CITab(QWidget):
             self.cards.remove(card)
         self.scroll_layout.removeWidget(card)
         self.job_cleared.emit(card.branch_name)
+        card.stop_worker()
         card.deleteLater()
 
     def clear_finished(self):
