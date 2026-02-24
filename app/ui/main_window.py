@@ -3,9 +3,9 @@ import json
 from PySide6.QtWidgets import (
     QMainWindow, QTabWidget, QWidget, QVBoxLayout, QLabel, 
     QStatusBar, QPushButton, QHBoxLayout, QComboBox, QFileDialog, QMessageBox,
-    QListWidget, QListWidgetItem
+    QListWidget, QListWidgetItem, QGraphicsDropShadowEffect
 )
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QIcon
 from PySide6.QtCore import Qt, QThread, Signal
 from app.core.resources import QSS_STYLE, StyleTokens
 from app.services.blender_launcher import BlenderLauncher
@@ -92,8 +92,18 @@ class PreviewTab(QWidget):
         
         # Sidebar
         sidebar = QWidget()
+        sidebar.setObjectName("PreviewSidebar")
         sidebar.setFixedWidth(250)
-        sidebar.setStyleSheet(f"background-color: {StyleTokens.BG_LEVEL_2}; border-right: 1px solid {StyleTokens.BORDER};")
+        sidebar.setStyleSheet(f"QWidget#PreviewSidebar {{ background-color: {StyleTokens.BG_LEVEL_2}; }}")
+        
+        # Subtle Dropshadow
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(15)
+        shadow.setXOffset(5)
+        shadow.setYOffset(0)
+        shadow.setColor(QColor(0, 0, 0, 150))
+        sidebar.setGraphicsEffect(shadow)
+        
         side_layout = QVBoxLayout(sidebar)
         side_layout.setContentsMargins(20, 20, 20, 20)
         side_layout.setSpacing(15)
@@ -155,7 +165,7 @@ class PreviewTab(QWidget):
         view_layout.setContentsMargins(0, 0, 0, 0)
         view_layout.setSpacing(0)
         
-        controls = QLabel("🖱️ Left Click: Orbit  |  Middle Click: Pan  |  Scroll: Zoom")
+        controls = QLabel("Left Click: Orbit  |  Middle Click: Pan  |  Scroll: Zoom")
         controls.setAlignment(Qt.AlignCenter)
         controls.setStyleSheet(f"background-color: {StyleTokens.BG_LEVEL_2}; border-bottom: 1px solid {StyleTokens.BORDER}; color: {StyleTokens.TEXT_SECONDARY}; padding: 8px; font-weight: bold;")
         view_layout.addWidget(controls)
@@ -351,6 +361,11 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("MechaLaunchPad — Modular Pipeline")
         self.resize(1000, 750)
         
+        # Set Window Icon
+        icon_path = os.path.join(os.getcwd(), "sprites", "app-icon-256.png")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+        
         # Initialize Services
         try:
             self.launcher = BlenderLauncher()
@@ -383,11 +398,10 @@ class MainWindow(QMainWindow):
     def init_tabs(self):
         self.viewport = ModularViewport()
         self.preview_tab = PreviewTab(self.viewport, self.template_service)
-        self.tabs.addTab(self.preview_tab, "📦 Preview && Export")
+        self.tabs.addTab(self.preview_tab, "Preview & Export")
 
-        
         validate_tab = ValidateTab(self.validation_service)
-        self.tabs.addTab(validate_tab, "✅ Validate")
+        self.tabs.addTab(validate_tab, "Validate")
         
         # Wire validation to preview
         validate_tab.validation_success.connect(self.preview_tab.add_custom_part)
@@ -396,8 +410,8 @@ class MainWindow(QMainWindow):
         self.publish_tab = PublishTab(self.gitlab_service)
         self.ci_tab = CITab(self.gitlab_service)
         
-        self.tabs.addTab(self.publish_tab, "🚀 Publish")
-        self.tabs.addTab(self.ci_tab, "📊 CI Status")
+        self.tabs.addTab(self.publish_tab, "Publish")
+        self.tabs.addTab(self.ci_tab, "CI Status")
         
         # Wire Validation Tab to Publish Tab
         validate_tab.validation_success.connect(self.publish_tab.on_validation_success)

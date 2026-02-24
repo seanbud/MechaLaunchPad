@@ -19,6 +19,7 @@ class StyleTokens:
     WARNING = "#d29922"
     BORDER = "#30363d"
     
+
     # Fonts
     FONT_MAIN = "Segoe UI"  # Professional Windows standard
     FONT_SIZE_BODY = 13

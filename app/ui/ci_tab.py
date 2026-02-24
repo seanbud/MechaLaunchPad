@@ -78,11 +78,25 @@ class CIJobCard(QFrame):
         
         layout.addLayout(actions_layout)
         
-        # Logs View
+        # Logs View (Terminal style)
         self.logs_view = QTextEdit()
         self.logs_view.setReadOnly(True)
-        self.logs_view.setFixedHeight(100)
+        self.logs_view.setAcceptRichText(True)
+        self.logs_view.setMinimumHeight(150)
         self.logs_view.hide()
+        
+        # Terminal Bezel Styling
+        self.logs_view.setStyleSheet(f"""
+            QTextEdit {{
+                background-color: #0c0c0d;
+                color: #d1d1d1;
+                font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+                font-size: 11px;
+                border: 1px solid #333;
+                border-radius: 4px;
+                padding: 10px;
+            }}
+        """)
         layout.addWidget(self.logs_view)
         
         # Start Worker
@@ -105,7 +119,7 @@ class CIJobCard(QFrame):
             self.toggle_logs_btn.setText("Show Logs")
 
     def on_pipeline_status(self, data):
-        status = data.get("status", "unknown")
+        status = data.get("status")
         self.status_val = status
         self.web_url = data.get("web_url", "")
         
@@ -119,30 +133,41 @@ class CIJobCard(QFrame):
         elif status == "success":
             icon = "✅"
             color = StyleTokens.SUCCESS
-            self.is_finished = True
-            self.dismiss_btn.show()
-            if self.worker:
-                self.worker.stop()
         elif status in ("failed", "canceled"):
             icon = "❌" if status == "failed" else "🚫"
             color = StyleTokens.ERROR
+
+        self.status_icon.setText(icon)
+        self.status_label.setText(status.capitalize())
+        self.status_label.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {color}; border: none; background: transparent;")
+
+        # Update Logs (HTML Terminal)
+        jobs = data.get("jobs", [])
+        html_logs = "<style>b { color: #58a6ff; }</style><b>[PIPELINE STATUS: " + status.upper() + "]</b><br>"
+        
+        if not jobs:
+            html_logs += f"<br><span style='color: {StyleTokens.TEXT_SECONDARY};'>Allocating remote runner...</span>"
+        else:
+            for job in jobs:
+                j_status = job.get("status")
+                j_name = job.get("name")
+                j_stage = job.get("stage")
+                
+                j_symbol = "⏳"
+                j_color = "#888"
+                if j_status == "success": j_symbol, j_color = "✅", StyleTokens.SUCCESS
+                elif j_status == "failed": j_symbol, j_color = "❌", StyleTokens.ERROR
+                elif j_status == "running": j_symbol, j_color = "🔄", StyleTokens.WARNING
+                
+                html_logs += f"<div style='margin-bottom: 2px;'><span style='color: {j_color};'>{j_symbol}</span> <b>{j_name}</b> <span style='color: #555;'>({j_stage})</span></div>"
+
+        self.logs_view.setHtml(html_logs)
+
+        if status in ("success", "failed", "canceled"):
             self.is_finished = True
             self.dismiss_btn.show()
             if self.worker:
                 self.worker.stop()
-                
-            error_details = data.get("error_details")
-            if error_details:
-                self.logs_view.append(f"\n[FAILED JOBS]:\n{error_details}")
-            else:
-                self.logs_view.append(f"Pipeline {status.upper()}.\nView in GitLab for specific job failure traces.")
-        else:
-            color = StyleTokens.TEXT_MAIN
-            
-        self.status_icon.setText(icon)
-        self.status_label.setText(status.capitalize())
-        self.status_label.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {color}; border: none; background: transparent;")
-        self.logs_view.append(f"[{status.upper()}] - {self.web_url}")
 
     def on_pipeline_error(self, error):
         self.logs_view.append(f"[ERROR] {error}")

@@ -258,24 +258,26 @@ class CIPollingWorker(QThread):
                 data = pr.json()
                 status = data.get("status")
                 
-                # Fetch detailed job errors if failed
-                if status == "failed":
-                    try:
-                        jr = requests.get(
-                            f"{base_url}/pipelines/{pipeline_id}/jobs",
-                            headers=headers
-                        )
-                        if jr.status_code == 200:
-                            jobs = jr.json()
+                # Fetch ALL jobs for granular UI reporting
+                try:
+                    jr = requests.get(
+                        f"{base_url}/pipelines/{pipeline_id}/jobs",
+                        headers=headers
+                    )
+                    if jr.status_code == 200:
+                        jobs = jr.json()
+                        data["jobs"] = jobs
+                        # Fetch detailed job errors if failed
+                        if status == "failed":
                             failed_jobs = [j for j in jobs if j.get("status") == "failed"]
                             if failed_jobs:
                                 details = []
                                 for j in failed_jobs:
                                     details.append(f"- Job '{j.get('name')}' failed in stage '{j.get('stage')}'.\n  URL: {j.get('web_url')}")
                                 data["error_details"] = "\n".join(details)
-                    except Exception as e:
-                        print(f"Failed to fetch job details: {e}")
-                        
+                except Exception as e:
+                    print(f"Failed to fetch job list: {e}")
+
                 self.status_updated.emit(data)
                 
                 if status in ("success", "failed", "canceled"):
