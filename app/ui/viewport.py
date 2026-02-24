@@ -1,5 +1,3 @@
-import math
-from PySide6.QtOpenGLWidgets import QOpenGLWidget
 import json
 import os
 import math
@@ -133,30 +131,6 @@ class ModularViewport(QOpenGLWidget):
         glEnd()
         glLineWidth(1)
         glEnable(GL_LIGHTING)
-
-    def draw_cube(self):
-        """Draws a simple unit cube at the origin."""
-        glColor3f(0.5, 0.5, 0.5)
-        glBegin(GL_QUADS)
-        # Front
-        glNormal3f(0, 0, 1)
-        glVertex3f(-0.5, 0, 0.5); glVertex3f(0.5, 0, 0.5); glVertex3f(0.5, 1, 0.5); glVertex3f(-0.5, 1, 0.5)
-        # Back
-        glNormal3f(0, 0, -1)
-        glVertex3f(-0.5, 0, -0.5); glVertex3f(-0.5, 1, -0.5); glVertex3f(0.5, 1, -0.5); glVertex3f(0.5, 0, -0.5)
-        # Top
-        glNormal3f(0, 1, 0)
-        glVertex3f(-0.5, 1, -0.5); glVertex3f(-0.5, 1, 0.5); glVertex3f(0.5, 1, 0.5); glVertex3f(0.5, 1, -0.5)
-        # Bottom
-        glNormal3f(0, -1, 0)
-        glVertex3f(-0.5, 0, -0.5); glVertex3f(0.5, 0, -0.5); glVertex3f(0.5, 0, 0.5); glVertex3f(-0.5, 0, 0.5)
-        # Left
-        glNormal3f(-1, 0, 0)
-        glVertex3f(-0.5, 0, -0.5); glVertex3f(-0.5, 0, 0.5); glVertex3f(-0.5, 1, 0.5); glVertex3f(-0.5, 1, -0.5)
-        # Right
-        glNormal3f(1, 0, 0)
-        glVertex3f(0.5, 0, -0.5); glVertex3f(0.5, 1, -0.5); glVertex3f(0.5, 1, 0.5); glVertex3f(0.5, 0, 0.5)
-        glEnd()
 
     def mousePressEvent(self, event):
         self.last_mouse_pos = event.pos()
