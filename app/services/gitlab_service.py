@@ -26,6 +26,7 @@ class GitLabService(QObject):
         # Determine local checkout path (e.g. ~/.mechalaunchpad/mech-assets)
         app_data_dir = os.path.join(os.path.expanduser("~"), ".mechalaunchpad")
         os.makedirs(app_data_dir, exist_ok=True)
+        os.chmod(app_data_dir, 0o700)
         self.local_repo_path = os.path.join(app_data_dir, "mech-assets")
         
         # Inject PAT into HTTPS URL for auth

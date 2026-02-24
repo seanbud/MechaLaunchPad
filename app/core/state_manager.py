@@ -6,6 +6,7 @@ class StateManager:
     def __init__(self):
         self.app_data_dir = os.path.join(os.path.expanduser("~"), ".mechalaunchpad")
         os.makedirs(self.app_data_dir, exist_ok=True)
+        os.chmod(self.app_data_dir, 0o700)
         self.state_file = os.path.join(self.app_data_dir, "session_state.json")
         self.state = {
             "validated_parts": [],
@@ -27,7 +28,9 @@ class StateManager:
     def save_state(self):
         """Saves current state to disk."""
         try:
-            with open(self.state_file, "w") as f:
+            # Create file with restrictive permissions (0o600)
+            fd = os.open(self.state_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, 'w') as f:
                 json.dump(self.state, f, indent=4)
         except Exception as e:
             print(f"Failed to save state: {e}")
