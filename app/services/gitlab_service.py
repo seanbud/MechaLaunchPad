@@ -97,7 +97,7 @@ class GitLabService(QObject):
         
         # Fix the user signature to the application rather than the local desktop user
         with repo.config_writer() as config:
-            config.set_value("user", "name", "MechaArtist App")
+            config.set_value("user", "name", "MechaLaunch Artist")
             config.set_value("user", "email", "pipeline@mechalaunchpad.local")
         
         # Ensure we are currently on main so we branch from the latest state (with CI files)
