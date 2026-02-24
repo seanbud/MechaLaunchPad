@@ -10,6 +10,8 @@ from app.core.resources import StyleTokens
 from app.services.gitlab_service import GitLabService, CIPollingWorker
 
 class CIJobCard(QFrame):
+    dismiss_requested = Signal()
+
     def __init__(self, service: GitLabService, category: str, branch_name: str, parent=None):
         super().__init__(parent)
         self.service = service
@@ -64,6 +66,12 @@ class CIJobCard(QFrame):
         
         actions_layout.addStretch()
         
+        self.dismiss_btn = QPushButton("Dismiss")
+        self.dismiss_btn.hide() # Only show when finished
+        self.dismiss_btn.clicked.connect(self.dismiss_requested.emit)
+        self.dismiss_btn.setStyleSheet(f"color: {StyleTokens.TEXT_SECONDARY}; border: 1px solid {StyleTokens.BORDER};")
+        actions_layout.addWidget(self.dismiss_btn)
+        
         self.toggle_logs_btn = QPushButton("Show Logs")
         self.toggle_logs_btn.clicked.connect(self.toggle_logs)
         actions_layout.addWidget(self.toggle_logs_btn)
@@ -112,12 +120,14 @@ class CIJobCard(QFrame):
             icon = "✅"
             color = StyleTokens.SUCCESS
             self.is_finished = True
+            self.dismiss_btn.show()
             if self.worker:
                 self.worker.stop()
         elif status in ("failed", "canceled"):
             icon = "❌" if status == "failed" else "🚫"
             color = StyleTokens.ERROR
             self.is_finished = True
+            self.dismiss_btn.show()
             if self.worker:
                 self.worker.stop()
                 
@@ -140,6 +150,8 @@ class CIJobCard(QFrame):
         self.status_label.setText("Error")
         self.status_label.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {StyleTokens.ERROR}; border: none; background: transparent;")
         self.is_finished = True
+        self.status_val = "error"
+        self.dismiss_btn.show()
 
     def stop_worker(self):
         if self.worker:
@@ -147,6 +159,8 @@ class CIJobCard(QFrame):
             self.worker.wait()
 
 class CITab(QWidget):
+    job_cleared = Signal(str) # Emits branch_name when a module is cleared
+
     def __init__(self, service: GitLabService):
         super().__init__()
         self.service = service
@@ -193,17 +207,20 @@ class CITab(QWidget):
                 return
                 
         card = CIJobCard(self.service, category, branch_name)
+        card.dismiss_requested.connect(lambda c=card: self.remove_card(c))
         # Insert before the stretch
         self.scroll_layout.insertWidget(self.scroll_layout.count() - 1, card)
         self.cards.append(card)
 
+    def remove_card(self, card):
+        if card in self.cards:
+            self.cards.remove(card)
+        self.scroll_layout.removeWidget(card)
+        self.job_cleared.emit(card.branch_name)
+        card.deleteLater()
+
     def clear_finished(self):
-        active_cards = []
-        for card in self.cards:
+        # Create a copy since we will mutate the list during iteration
+        for card in list(self.cards):
             if card.is_finished and card.status_val == "success":
-                # Remove from layout and delete
-                self.scroll_layout.removeWidget(card)
-                card.deleteLater()
-            else:
-                active_cards.append(card)
-        self.cards = active_cards
+                self.remove_card(card)

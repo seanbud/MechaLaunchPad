@@ -412,6 +412,9 @@ class MainWindow(QMainWindow):
         self.publish_tab.submission_started.connect(self.state_manager.add_tracked_ci)
         self.publish_tab.part_published.connect(self.state_manager.remove_validated_part)
         
+        # Wire CI Tab cleanup to state manager
+        self.ci_tab.job_cleared.connect(self.state_manager.remove_tracked_ci)
+        
         # Load persistent state into tabs
         validated_state = self.state_manager.state.get("validated_parts", [])
         self.publish_tab.load_state(validated_state)
