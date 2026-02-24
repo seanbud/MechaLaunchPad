@@ -10,7 +10,9 @@ class StateManager:
         self.state_file = os.path.join(self.app_data_dir, "session_state.json")
         self.state = {
             "validated_parts": [],
-            "ci_tracking": []
+            "ci_tracking": [],
+            "remote_parts_cache": {},  # {category: [versions]}
+            "last_main_sha": ""  # For cache invalidation
         }
         self.load_state()
 
@@ -22,6 +24,8 @@ class StateManager:
                     data = json.load(f)
                     self.state["validated_parts"] = data.get("validated_parts", [])
                     self.state["ci_tracking"] = data.get("ci_tracking", [])
+                    self.state["remote_parts_cache"] = data.get("remote_parts_cache", {})
+                    self.state["last_main_sha"] = data.get("last_main_sha", "")
             except Exception as e:
                 print(f"Failed to load state: {e}")
 
@@ -85,3 +89,13 @@ class StateManager:
     def get_all_tracked_ci(self):
         """Returns all tracked CI pipeline contexts."""
         return self.state["ci_tracking"]
+
+    def update_remote_cache(self, remote_parts, sha):
+        """Updates the cached remote parts and the latest main SHA."""
+        self.state["remote_parts_cache"] = remote_parts
+        self.state["last_main_sha"] = sha
+        self.save_state()
+
+    def get_remote_cache(self):
+        """Returns the cached remote parts and SHA."""
+        return self.state["remote_parts_cache"], self.state["last_main_sha"]

@@ -8,7 +8,7 @@
       "mixamorig:LeftHandRing1", "mixamorig:LeftHandRing2", "mixamorig:LeftHandRing3",
       "mixamorig:LeftHandPinky1", "mixamorig:LeftHandPinky2", "mixamorig:LeftHandPinky3"
     ],
-    "max_tris": 15000,
+    "max_tris": 1200,
     "required_sockets": ["SOCKET_L_ARM_WEAPON"]
   },
   "RightArm": {
@@ -20,17 +20,17 @@
       "mixamorig:RightHandRing1", "mixamorig:RightHandRing2", "mixamorig:RightHandRing3",
       "mixamorig:RightHandPinky1", "mixamorig:RightHandPinky2", "mixamorig:RightHandPinky3"
     ],
-    "max_tris": 15000,
+    "max_tris": 1200,
     "required_sockets": ["SOCKET_R_ARM_WEAPON"]
   },
   "Torso": {
     "bones": ["mixamorig:Hips", "mixamorig:Spine", "mixamorig:Spine1", "mixamorig:Spine2"],
-    "max_tris": 25000,
+    "max_tris": 2500,
     "required_sockets": ["SOCKET_C_BACK_MOUNT"]
   },
   "Head": {
     "bones": ["mixamorig:Neck", "mixamorig:Head", "mixamorig:HeadTop_End"],
-    "max_tris": 10000,
+    "max_tris": 2000,
     "required_sockets": []
   },
   "Legs": {
@@ -38,7 +38,7 @@
       "mixamorig:LeftUpLeg", "mixamorig:LeftLeg", "mixamorig:LeftFoot", "mixamorig:LeftToeBase",
       "mixamorig:RightUpLeg", "mixamorig:RightLeg", "mixamorig:RightFoot", "mixamorig:RightToeBase"
     ],
-    "max_tris": 20000,
+    "max_tris": 2500,
     "required_sockets": []
   }
 }

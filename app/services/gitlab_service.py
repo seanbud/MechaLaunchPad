@@ -92,6 +92,101 @@ class GitLabService(QObject):
         origin.pull(repo.active_branch)
         return repo
 
+    def _api_headers(self):
+        """Returns headers for GitLab API requests."""
+        return {"PRIVATE-TOKEN": self.token}
+
+    def _api_base(self):
+        """Returns the base API URL for this project."""
+        return f"{self.repo_url}/api/v4/projects/{self.project_id}"
+
+    def get_latest_main_sha(self):
+        """Gets the latest commit SHA on the main branch for cache invalidation."""
+        if not self.repo_url or not self.token or not self.project_id:
+            return None
+        try:
+            r = requests.get(
+                f"{self._api_base()}/repository/branches/main",
+                headers=self._api_headers()
+            )
+            if r.status_code == 200:
+                return r.json().get("commit", {}).get("id", "")
+        except Exception as e:
+            print(f"Failed to get main SHA: {e}")
+        return None
+
+    def get_existing_versions(self, category):
+        """
+        Queries GitLab API for existing versions of a category.
+        Returns a sorted list of version strings like ["v001", "v002", ...].
+        """
+        if not self.repo_url or not self.token or not self.project_id:
+            return []
+        
+        try:
+            r = requests.get(
+                f"{self._api_base()}/repository/tree",
+                headers=self._api_headers(),
+                params={"path": f"parts/{category}", "ref": "main", "per_page": 100}
+            )
+            if r.status_code == 200:
+                entries = r.json()
+                versions = [
+                    e["name"] for e in entries 
+                    if e["type"] == "tree" and e["name"].startswith("v")
+                ]
+                versions.sort()
+                return versions
+        except Exception as e:
+            print(f"Failed to get existing versions for {category}: {e}")
+        return []
+
+    def list_remote_parts(self, category):
+        """
+        Lists all validated versions of a category from the remote repo.
+        Returns a list of dicts: [{version, category}].
+        """
+        versions = self.get_existing_versions(category)
+        return [{"version": v, "category": category} for v in versions]
+
+    def download_part_fbx(self, category, version, cache_dir=None):
+        """
+        Downloads an FBX file from the remote repo via the GitLab raw file API.
+        Caches it locally. Returns the local file path or None on failure.
+        """
+        if not cache_dir:
+            cache_dir = os.path.join(os.path.expanduser("~"), ".mechalaunchpad", "cache")
+        
+        local_dir = os.path.join(cache_dir, "parts", category, version)
+        local_fbx = os.path.join(local_dir, f"{category}_{version}.fbx")
+        
+        # Return cached file if it exists
+        if os.path.exists(local_fbx):
+            return local_fbx
+        
+        # Download from GitLab
+        import urllib.parse
+        file_path = f"parts/{category}/{version}/{category}_{version}.fbx"
+        encoded_path = urllib.parse.quote(file_path, safe='')
+        
+        try:
+            r = requests.get(
+                f"{self._api_base()}/repository/files/{encoded_path}/raw",
+                headers=self._api_headers(),
+                params={"ref": "main"}
+            )
+            if r.status_code == 200:
+                os.makedirs(local_dir, exist_ok=True)
+                with open(local_fbx, "wb") as f:
+                    f.write(r.content)
+                print(f"Downloaded {file_path} to {local_fbx}")
+                return local_fbx
+            else:
+                print(f"Failed to download {file_path}: {r.status_code}")
+        except Exception as e:
+            print(f"Failed to download FBX: {e}")
+        return None
+
     def publish_asset(self, category, fbx_data, fbx_filepath, commit_message):
         """
         Creates a submission branch from main, copies the asset, and pushes it.

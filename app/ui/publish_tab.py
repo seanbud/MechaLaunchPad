@@ -1,12 +1,31 @@
 import os
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayout, 
-    QListWidget, QListWidgetItem, QPlainTextEdit, QMessageBox
+    QListWidget, QListWidgetItem, QPlainTextEdit, QMessageBox, QFrame
 )
 from PySide6.QtGui import QColor
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QThread
 from app.core.resources import StyleTokens
 from app.services.gitlab_service import GitLabService, PublishWorker
+
+
+class VersionQueryWorker(QThread):
+    """Background worker to query existing versions for a category."""
+    finished = Signal(str, list)  # category, versions_list
+    
+    def __init__(self, service: GitLabService, category: str):
+        super().__init__()
+        self.service = service
+        self.category = category
+    
+    def run(self):
+        try:
+            versions = self.service.get_existing_versions(self.category)
+            self.finished.emit(self.category, versions)
+        except Exception as e:
+            print(f"Version query failed: {e}")
+            self.finished.emit(self.category, [])
+
 
 class PublishTab(QWidget):
     submission_started = Signal(str, str) # category, branch_name
@@ -35,6 +54,32 @@ class PublishTab(QWidget):
         self.parts_list.setStyleSheet(f"background-color: {StyleTokens.BG_LEVEL_1}; border: 1px solid {StyleTokens.BORDER};")
         self.parts_list.itemSelectionChanged.connect(self.on_selection_changed)
         layout.addWidget(self.parts_list)
+        
+        # Version Context Panel
+        self.version_panel = QFrame()
+        self.version_panel.setStyleSheet(f"""
+            QFrame {{
+                background-color: {StyleTokens.BG_LEVEL_1};
+                border: 1px solid {StyleTokens.BORDER};
+                border-radius: 6px;
+                padding: 12px;
+            }}
+        """)
+        version_layout = QVBoxLayout(self.version_panel)
+        version_layout.setContentsMargins(12, 8, 12, 8)
+        version_layout.setSpacing(4)
+        
+        self.version_header = QLabel("")
+        self.version_header.setStyleSheet(f"font-weight: bold; color: {StyleTokens.TEXT_MAIN}; border: none; padding: 0;")
+        version_layout.addWidget(self.version_header)
+        
+        self.version_detail = QLabel("")
+        self.version_detail.setStyleSheet(f"color: {StyleTokens.TEXT_SECONDARY}; font-size: 12px; border: none; padding: 0;")
+        self.version_detail.setWordWrap(True)
+        version_layout.addWidget(self.version_detail)
+        
+        self.version_panel.setVisible(False)
+        layout.addWidget(self.version_panel)
         
         # Commit Message
         msg_label = QLabel("Commit Message (Optional):")
@@ -103,6 +148,44 @@ class PublishTab(QWidget):
         selected = self.parts_list.selectedItems()
         self.publish_btn.setEnabled(len(selected) > 0)
         
+        if selected:
+            filepath = selected[0].data(Qt.UserRole)
+            category = self.validated_parts[filepath][0]
+            
+            # Show loading state in version panel
+            self.version_panel.setVisible(True)
+            self.version_header.setText(f"⏳ Checking server for existing {category} versions...")
+            self.version_detail.setText("")
+            
+            # Query versions in background
+            self._version_worker = VersionQueryWorker(self.service, category)
+            self._version_worker.finished.connect(self.on_versions_loaded)
+            self._version_worker.start()
+        else:
+            self.version_panel.setVisible(False)
+    
+    def on_versions_loaded(self, category, versions):
+        """Called when the version query background worker completes."""
+        if not versions:
+            self.version_header.setText(f"🆕 {category} — First submission!")
+            self.version_header.setStyleSheet(f"font-weight: bold; color: {StyleTokens.SUCCESS}; border: none; padding: 0;")
+            self.version_detail.setText("This will be published as v001.")
+        else:
+            count = len(versions)
+            version_list = ", ".join(versions[-5:])  # Show last 5
+            if count > 5:
+                version_list = f"...{version_list}"
+            
+            next_num = max(int(v[1:]) for v in versions if v[1:].isdigit()) + 1
+            next_ver = f"v{next_num:03d}"
+            
+            self.version_header.setText(f"📦 {category} — {count} version{'s' if count > 1 else ''} on server")
+            self.version_header.setStyleSheet(f"font-weight: bold; color: {StyleTokens.WARNING}; border: none; padding: 0;")
+            self.version_detail.setText(
+                f"Existing: {version_list}\n"
+                f"This will be published as {next_ver}. (Adds a new version, does not replace existing ones.)"
+            )
+        
     def on_publish_clicked(self):
         selected = self.parts_list.selectedItems()
         if not selected:
@@ -149,13 +232,16 @@ class PublishTab(QWidget):
                 category = self.validated_parts[selected[0].data(Qt.UserRole)][0]
                 self.submission_started.emit(category, branch_name)
                 
-            # Optionally remove from list after publish?
+            # Remove from list after publish
             row = self.parts_list.currentRow()
             if row >= 0:
                 item = self.parts_list.takeItem(row)
                 filepath = item.data(Qt.UserRole)
                 del self.validated_parts[filepath]
                 self.part_published.emit(filepath)
+            
+            # Hide version panel
+            self.version_panel.setVisible(False)
                 
             QMessageBox.information(self, "Publish Success", message)
             self.commit_input.clear()

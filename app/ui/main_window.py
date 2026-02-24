@@ -78,13 +78,90 @@ class RobotAssemblyWorker(QThread):
         except Exception as e:
             self.finished.emit({}, f"Error processing base robot: {e}")
 
+class RemoteSyncWorker(QThread):
+    """Background worker that queries GitLab for all remote parts across all categories."""
+    finished = Signal(dict, str)  # {category: [versions]}, latest_sha
+    
+    def __init__(self, gitlab_service):
+        super().__init__()
+        self.service = gitlab_service
+    
+    def run(self):
+        remote_parts = {}
+        sha = ""
+        try:
+            sha = self.service.get_latest_main_sha() or ""
+            for cat in ["Head", "Torso", "LeftArm", "RightArm", "Legs"]:
+                versions = self.service.get_existing_versions(cat)
+                if versions:
+                    remote_parts[cat] = versions
+        except Exception as e:
+            print(f"Remote sync failed: {e}")
+        self.finished.emit(remote_parts, sha)
+
+
+class PartDownloadWorker(QThread):
+    """Downloads and extracts an FBX from the remote repo for viewport preview."""
+    finished = Signal(str, str, object, str)  # category, version, fbx_data, error
+    
+    def __init__(self, gitlab_service, validation_service, category, version):
+        super().__init__()
+        self.gitlab_service = gitlab_service
+        self.validation_service = validation_service
+        self.category = category
+        self.version = version
+    
+    def run(self):
+        try:
+            # Download FBX
+            local_path = self.gitlab_service.download_part_fbx(self.category, self.version)
+            if not local_path:
+                self.finished.emit(self.category, self.version, None, "Download failed")
+                return
+            
+            # Extract mesh data via Blender
+            import json as json_mod
+            success, stdout, stderr = self.validation_service.launcher.run_python_script(
+                self.validation_service.extract_script,
+                extra_args=[local_path]
+            )
+            
+            if success != 0:
+                self.finished.emit(self.category, self.version, None, f"Blender extraction failed: {stderr[:200]}")
+                return
+            
+            # Parse JSON output
+            lines = stdout.splitlines()
+            start_idx = lines.index("RESULT_START")
+            fbx_json = json.loads(lines[start_idx + 1])
+            
+            fbx_data = FBXData(
+                filename=fbx_json["filename"],
+                tris=fbx_json["tris"],
+                meshes=fbx_json["meshes"],
+                armature_name=fbx_json["armature_name"],
+                bones=fbx_json["bones"]
+            )
+            
+            # Filter to just this category's meshes
+            _, filtered = self.validation_service.runner.validate(local_path, fbx_data, self.category)
+            
+            self.finished.emit(self.category, self.version, filtered, "")
+        except Exception as e:
+            self.finished.emit(self.category, self.version, None, str(e))
+
+
 class PreviewTab(QWidget):
-    def __init__(self, viewport: ModularViewport, template_service: TemplateService):
+    def __init__(self, viewport: ModularViewport, template_service: TemplateService, gitlab_service=None, validation_service=None):
         super().__init__()
         self.viewport = viewport
         self.template_service = template_service
+        self.gitlab_service = gitlab_service
+        self.validation_service = validation_service
         self.custom_parts = {} # category -> fbx_data
         self.default_parts = {} # category -> fbx_data
+        self.server_parts = {} # category -> {version: fbx_data_or_None}
+        self._download_workers = []  # Keep references alive
         
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -123,13 +200,18 @@ class PreviewTab(QWidget):
             group_layout.addWidget(label)
             
             combo = QComboBox()
-            combo.addItems(["Default", "Custom"])
-            combo.setEnabled(False) # Enable once we have custom parts
+            combo.addItem("🔵 Default")
+            combo.setEnabled(False) # Enable once we have alternate parts
             combo.currentIndexChanged.connect(lambda idx, c=cat: self.on_part_swapped(c, idx))
             group_layout.addWidget(combo)
             
             self.selectors[cat] = combo
             side_layout.addWidget(cat_group)
+            
+        # Sync indicator
+        self.sync_label = QLabel("")
+        self.sync_label.setStyleSheet(f"color: {StyleTokens.TEXT_SECONDARY}; font-size: 10px;")
+        side_layout.addWidget(self.sync_label)
             
         side_layout.addStretch()
         
@@ -173,6 +255,47 @@ class PreviewTab(QWidget):
         view_layout.addWidget(self.viewport, 1)
         layout.addWidget(view_container, 1)
 
+    def start_remote_sync(self):
+        """Kicks off background sync with GitLab to populate server parts."""
+        if not self.gitlab_service or not self.gitlab_service.token:
+            return
+        
+        self.sync_label.setText("⏳ Syncing with server...")
+        self._sync_worker = RemoteSyncWorker(self.gitlab_service)
+        self._sync_worker.finished.connect(self.on_remote_sync_complete)
+        self._sync_worker.start()
+    
+    def on_remote_sync_complete(self, remote_parts, sha):
+        """Called when background sync finishes. Populates dropdowns with server parts."""
+        total_count = sum(len(v) for v in remote_parts.values())
+        if total_count > 0:
+            self.sync_label.setText(f"✅ {total_count} server parts loaded")
+        else:
+            self.sync_label.setText("No server parts found")
+        
+        for category, versions in remote_parts.items():
+            combo = self.selectors.get(category)
+            if not combo:
+                continue
+            
+            # Track server parts (None = not yet downloaded)
+            if category not in self.server_parts:
+                self.server_parts[category] = {}
+            
+            for version in versions:
+                entry_text = f"🟢 Server: {version}"
+                # Check if already in combo
+                found = False
+                for i in range(combo.count()):
+                    if combo.itemText(i) == entry_text:
+                        found = True
+                        break
+                
+                if not found:
+                    combo.addItem(entry_text)
+                    self.server_parts[category][version] = None  # Not yet loaded
+                    combo.setEnabled(True)
+
     def on_export_clicked(self):
         dest_dir = QFileDialog.getExistingDirectory(self, "Select Export Directory")
         if not dest_dir:
@@ -181,9 +304,6 @@ class PreviewTab(QWidget):
         self.export_btn.setEnabled(False)
         self.export_btn.setText("Generating...")
         
-        # Export the whole rig template
-        # Passing empty string to trigger full rig export setup (if script supports it)
-        # Or defaulting to a core part like Torso or "All" depending on what the script needs
         path, error = self.template_service.generate_template("ALL", dest_dir)
         
         self.export_btn.setEnabled(True)
@@ -195,14 +315,62 @@ class PreviewTab(QWidget):
             QMessageBox.critical(self, "Error", f"Failed to generate template:\n{error}")
 
     def on_part_swapped(self, category, index):
-        """Swaps between default and custom mesh for a limb."""
-        if index == 0: # Default
+        """Swaps between default, custom, and server meshes for a limb."""
+        combo = self.selectors.get(category)
+        if not combo:
+            return
+        
+        text = combo.itemText(index)
+        
+        if text.startswith("🔵"):
+            # Default
             data = self.default_parts.get(category)
-        else: # Custom
+            if data:
+                self.viewport.load_fbx_data(category, data)
+        elif text.startswith("🟡"):
+            # Local custom part
             data = self.custom_parts.get(category)
+            if data:
+                self.viewport.load_fbx_data(category, data)
+        elif text.startswith("🟢"):
+            # Server part — extract version and lazy-load
+            version = text.split("Server: ")[-1].strip()
             
-        if data:
-            self.viewport.load_fbx_data(category, data)
+            # Check if already downloaded
+            cached = self.server_parts.get(category, {}).get(version)
+            if cached:
+                self.viewport.load_fbx_data(category, cached)
+            elif self.gitlab_service and self.validation_service:
+                # Download in background
+                self.sync_label.setText(f"⏳ Downloading {category} {version}...")
+                worker = PartDownloadWorker(
+                    self.gitlab_service, self.validation_service,
+                    category, version
+                )
+                worker.finished.connect(self.on_part_downloaded)
+                worker.start()
+                self._download_workers.append(worker)
+
+    def on_part_downloaded(self, category, version, fbx_data, error):
+        """Called when a server part has been downloaded and extracted."""
+        if error:
+            self.sync_label.setText(f"❌ Download failed: {error[:50]}")
+            return
+        
+        if fbx_data:
+            # Cache the data
+            if category not in self.server_parts:
+                self.server_parts[category] = {}
+            self.server_parts[category][version] = fbx_data
+            
+            # Load into viewport if this is still the selected item
+            combo = self.selectors.get(category)
+            if combo:
+                current_text = combo.currentText()
+                if version in current_text:
+                    self.viewport.load_fbx_data(category, fbx_data)
+            
+            self.sync_label.setText(f"✅ Loaded {category} {version}")
 
     def set_default_assembly(self, assembly):
         self.default_parts = assembly
@@ -214,12 +382,27 @@ class PreviewTab(QWidget):
         combo = self.selectors.get(category)
         if combo:
             combo.setEnabled(True)
-            if combo.count() > 1:
-                combo.setItemText(1, filename)
+            
+            # Find or add local entry (index 1, right after Default)
+            local_text = f"🟡 Local: {filename}"
+            
+            # Check if a local entry already exists
+            local_idx = -1
+            for i in range(combo.count()):
+                if combo.itemText(i).startswith("🟡"):
+                    local_idx = i
+                    break
+            
+            if local_idx >= 0:
+                combo.setItemText(local_idx, local_text)
             else:
-                combo.addItem(filename)
-            combo.setCurrentIndex(1) # Auto-switch to custom when validated
-            self.on_part_swapped(category, 1)
+                # Insert after Default (index 0)
+                combo.insertItem(1, local_text)
+            
+            # Auto-switch to custom when validated
+            target_idx = 1 if local_idx < 0 else local_idx
+            combo.setCurrentIndex(target_idx)
+            self.on_part_swapped(category, target_idx)
 
 class ValidateTab(QWidget):
     validation_success = Signal(str, object, str, str) # category, fbx_data, filename, filepath
@@ -397,7 +580,11 @@ class MainWindow(QMainWindow):
 
     def init_tabs(self):
         self.viewport = ModularViewport()
-        self.preview_tab = PreviewTab(self.viewport, self.template_service)
+        self.preview_tab = PreviewTab(
+            self.viewport, self.template_service,
+            gitlab_service=self.gitlab_service,
+            validation_service=self.validation_service
+        )
         self.tabs.addTab(self.preview_tab, "Preview & Export")
 
         validate_tab = ValidateTab(self.validation_service)
@@ -478,6 +665,9 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Load Error", error)
         else:
             self.preview_tab.set_default_assembly(assembly)
+            
+            # Start remote sync to populate server parts in dropdowns
+            self.preview_tab.start_remote_sync()
             
             # Preserve GitLab status
             if self.gitlab_service.repo_url and self.gitlab_service.token:
