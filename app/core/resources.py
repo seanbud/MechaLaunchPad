@@ -107,7 +107,7 @@ QComboBox {{
     background-color: {StyleTokens.BG_LEVEL_3};
     border: 1px solid {StyleTokens.BORDER};
     border-radius: 6px;
-    padding: 6px 12px;
+    padding: 6px 28px 6px 12px;
     color: {StyleTokens.TEXT_MAIN};
     font-family: '{StyleTokens.FONT_MAIN}', sans-serif;
 }}
@@ -116,9 +116,30 @@ QComboBox:hover {{
     border-color: {StyleTokens.TEXT_SECONDARY};
 }}
 
+QComboBox:disabled {{
+    color: {StyleTokens.TEXT_SECONDARY};
+}}
+
 QComboBox::drop-down {{
     border: none;
-    width: 30px;
+    width: 24px;
+    subcontrol-position: right center;
+}}
+
+QComboBox::down-arrow {{
+    image: none;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid {StyleTokens.TEXT_SECONDARY};
+    margin-right: 8px;
+}}
+
+QComboBox::down-arrow:hover {{
+    border-top-color: {StyleTokens.PRIMARY};
+}}
+
+QComboBox:disabled::down-arrow {{
+    border-top-color: transparent;
 }}
 
 QComboBox QAbstractItemView {{

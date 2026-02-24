@@ -96,7 +96,7 @@ class RemoteSyncWorker(QThread):
                 if versions:
                     remote_parts[cat] = versions
         except Exception as e:
-            print(f"Remote sync failed: {e}")
+            print(f"Remote sync error: {e}")
         self.finished.emit(remote_parts, sha)
 
 
@@ -200,7 +200,7 @@ class PreviewTab(QWidget):
             group_layout.addWidget(label)
             
             combo = QComboBox()
-            combo.addItem("🔵 Default")
+            combo.addItem("⚪ Default")
             combo.setEnabled(False) # Enable once we have alternate parts
             combo.currentIndexChanged.connect(lambda idx, c=cat: self.on_part_swapped(c, idx))
             group_layout.addWidget(combo)
@@ -208,10 +208,36 @@ class PreviewTab(QWidget):
             self.selectors[cat] = combo
             side_layout.addWidget(cat_group)
             
-        # Sync indicator
+        # Sync indicator + refresh button
+        sync_row = QWidget()
+        sync_layout = QHBoxLayout(sync_row)
+        sync_layout.setContentsMargins(0, 0, 0, 0)
+        sync_layout.setSpacing(6)
+        
         self.sync_label = QLabel("")
         self.sync_label.setStyleSheet(f"color: {StyleTokens.TEXT_SECONDARY}; font-size: 10px;")
-        side_layout.addWidget(self.sync_label)
+        sync_layout.addWidget(self.sync_label, 1)
+        
+        self.refresh_btn = QPushButton("\u21bb")
+        self.refresh_btn.setFixedSize(20, 20)
+        self.refresh_btn.setToolTip("Refresh server parts")
+        self.refresh_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: transparent;
+                border: none;
+                color: {StyleTokens.TEXT_SECONDARY};
+                font-size: 14px;
+                border-radius: 10px;
+            }}
+            QPushButton:hover {{
+                color: {StyleTokens.PRIMARY};
+                background: {StyleTokens.BG_LEVEL_3};
+            }}
+        """)
+        self.refresh_btn.clicked.connect(self.start_remote_sync)
+        sync_layout.addWidget(self.refresh_btn)
+        
+        side_layout.addWidget(sync_row)
             
         side_layout.addStretch()
         
@@ -260,7 +286,7 @@ class PreviewTab(QWidget):
         if not self.gitlab_service or not self.gitlab_service.token:
             return
         
-        self.sync_label.setText("⏳ Syncing with server...")
+        self.sync_label.setText("Syncing with server...")
         self._sync_worker = RemoteSyncWorker(self.gitlab_service)
         self._sync_worker.finished.connect(self.on_remote_sync_complete)
         self._sync_worker.start()
@@ -269,32 +295,36 @@ class PreviewTab(QWidget):
         """Called when background sync finishes. Populates dropdowns with server parts."""
         total_count = sum(len(v) for v in remote_parts.values())
         if total_count > 0:
-            self.sync_label.setText(f"✅ {total_count} server parts loaded")
+            self.sync_label.setText(f"{total_count} server parts")
         else:
-            self.sync_label.setText("No server parts found")
+            self.sync_label.setText("No server parts")
+        
+        # Clear all existing server entries from every dropdown (handles deletions)
+        for cat in ["Head", "Torso", "LeftArm", "RightArm", "Legs"]:
+            combo = self.selectors.get(cat)
+            if not combo:
+                continue
+            # Remove server entries (reverse iterate to avoid index shift)
+            for i in range(combo.count() - 1, -1, -1):
+                if combo.itemText(i).startswith("\U0001f7e2"):
+                    combo.removeItem(i)
+        
+        # Reset server parts cache
+        self.server_parts = {}
         
         for category, versions in remote_parts.items():
             combo = self.selectors.get(category)
             if not combo:
                 continue
             
-            # Track server parts (None = not yet downloaded)
             if category not in self.server_parts:
                 self.server_parts[category] = {}
             
             for version in versions:
-                entry_text = f"🟢 Server: {version}"
-                # Check if already in combo
-                found = False
-                for i in range(combo.count()):
-                    if combo.itemText(i) == entry_text:
-                        found = True
-                        break
-                
-                if not found:
-                    combo.addItem(entry_text)
-                    self.server_parts[category][version] = None  # Not yet loaded
-                    combo.setEnabled(True)
+                entry_text = f"\U0001f7e2 Server: {version}"
+                combo.addItem(entry_text)
+                self.server_parts[category][version] = None
+                combo.setEnabled(True)
 
     def on_export_clicked(self):
         dest_dir = QFileDialog.getExistingDirectory(self, "Select Export Directory")
@@ -322,7 +352,7 @@ class PreviewTab(QWidget):
         
         text = combo.itemText(index)
         
-        if text.startswith("🔵"):
+        if text.startswith("⚪"):
             # Default
             data = self.default_parts.get(category)
             if data:
