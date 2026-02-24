@@ -1,6 +1,10 @@
 # MechaLaunchPad
 
-MechaLaunchPad is a local PySide desktop tool that demonstrates an **end-to-end modular content pipeline**. It allows artists to author mech parts in Blender against a canonical template rig, validate them locally, preview those parts interactively on a 3D animated robot, and then publish them to a CI/CD pipeline.
+PySide desktop app, providing an **end-to-end 3d content pipeline** for a modular robot mech game.
+
+Artists use this to generate their template files, to upload and locally validate new assets, preview those parts interactively on a 3D animated robot, and then publish them to the Gitlab CI/CD pipeline.
+
+The pipeline then generates a thumbnail, and pushes it to a Unity repo + bakes a prefab (WIP).
 
 <img width="256" height="256" alt="app-icon" src="https://github.com/user-attachments/assets/bba14f66-430f-49e2-9cf5-a4aff4075853" />
 
@@ -10,14 +14,12 @@ MechaLaunchPad is a local PySide desktop tool that demonstrates an **end-to-end 
 
 To keep the pipeline clean and flexible, the architecture is split into two repositories:
 
-1. **The App Source (MechaLaunchPad)**: This GitHub repository. It contains the Python source code for the PySide6 application, the local validation rules, the headless Blender extraction scripts, and the interactive OpenGL preview logic.
-2. **The Asset Pipeline (MechAssets)**: A target GitLab repository (to be configured). This is the destination for validated `.fbx` files. Pushing to this repository triggers automated GitLab CI/CD pipelines that ingest the models into Unity, bake prefabs, and generate thumbnails.
+1. **The App Source (MechaLaunchPad)**: This GitHub repository. It contains the Python source code for the PySide application, the local validation rules, the headless Blender extraction scripts, and the interactive OpenGL preview logic.
+2. **The Asset Pipeline (MechAssets)**: A target GitLab repository. This is the destination for validated `.fbx` files. Pushing to this repository triggers automated GitLab CI/CD pipelines that ingest the models into Unity, bake prefabs, and generate thumbnails.
 
-## Features (MVP Phase 1 Complete)
+## Video Demo
 
-*   **Template Export**
-*   **Local Validation**: Headless Blender processes run local checks on your FBX files, validating naming conventions, bone parenting hierarchies, and triangle counts against a defined `part_registry.json`.
-*   **Interactive 3D Preview**: A custom-built PySide `QOpenGLWidget` allows you to preview validated parts.
+https://github.com/user-attachments/assets/756d6783-948e-4f31-8448-ac84eee9f05b
 
 ## Setup & Running Locally
 
@@ -32,14 +34,3 @@ To keep the pipeline clean and flexible, the architecture is split into two repo
     ```bash
     .\run_app.bat
     ```
-
-## Video Demo
-
-
-https://github.com/user-attachments/assets/3fefc814-4727-48d8-a273-ccfca68c819d
-
-
-
-## Development State
-
-Currently, the local validation and interactive preview systems are fully functional. The next major phase of development will focus on the **Publishing Flow** (GitPython integration) to push validated assets from this app directly to the GitLab Asset Repo and poll the CI pipeline status. See `docs/00_OVERVIEW.md` for the full design documentation.
