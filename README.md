@@ -17,9 +17,13 @@ To keep the pipeline clean and flexible, the architecture is split into two repo
 1. **The App Source (MechaLaunchPad)**: This GitHub repository. It contains the Python source code for the PySide application, the local validation rules, the headless Blender extraction scripts, and the interactive OpenGL preview logic.
 2. **The Asset Pipeline (MechAssets)**: A target GitLab repository. This is the destination for validated `.fbx` files. Pushing to this repository triggers automated GitLab CI/CD pipelines that ingest the models into Unity, bake prefabs, and generate thumbnails.
 
+<img width="460" height="74" alt="image" src="https://github.com/user-attachments/assets/628637f4-e7fd-4e4e-bc71-f45d4a558752" />
+
+
 ## Video Demo
 
 https://github.com/user-attachments/assets/756d6783-948e-4f31-8448-ac84eee9f05b
+
 
 ## Setup & Running Locally
 
